@@ -6,9 +6,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 
-// ✅ Correct modern CSS imports (FullCalendar v6+)
-import "@fullcalendar/react/dist/vdom"; // fixes Vercel SSR errors
-import "@fullcalendar/common/main.css";
+// ✅ v6 CSS imports (these exist in 6.1.10)
 import "@fullcalendar/daygrid/main.css";
 import "@fullcalendar/timegrid/main.css";
 
