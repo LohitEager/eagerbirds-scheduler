@@ -5,16 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "prebuild": "npm ls --depth=0 @fullcalendar/core @fullcalendar/react @fullcalendar/daygrid @fullcalendar/timegrid @fullcalendar/interaction || true"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.42.0",
+    "@supabase/supabase-js": "2.42.0",
     "next": "14.2.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-datepicker": "^6.9.0",
-    "react-modal": "^3.16.1",
-    "date-fns": "^3.6.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-datepicker": "6.9.0",
+    "react-modal": "3.16.1",
+    "date-fns": "3.6.0",
     "@fullcalendar/core": "6.1.10",
     "@fullcalendar/react": "6.1.10",
     "@fullcalendar/daygrid": "6.1.10",
