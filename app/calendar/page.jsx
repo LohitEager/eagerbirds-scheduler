@@ -6,12 +6,13 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 
-// Correct FullCalendar CSS imports
-import "@fullcalendar/daygrid/index.css";
-import "@fullcalendar/timegrid/index.css";
+// ✅ Correct modern CSS imports (FullCalendar v6+)
+import "@fullcalendar/react/dist/vdom"; // fixes Vercel SSR errors
+import "@fullcalendar/common/main.css";
+import "@fullcalendar/daygrid/main.css";
+import "@fullcalendar/timegrid/main.css";
 
 export default function CalendarPage() {
-  // Handle clicks on calendar dates
   const handleDateClick = (info) => {
     alert(`Clicked on: ${info.dateStr}`);
   };
@@ -21,7 +22,6 @@ export default function CalendarPage() {
       style={{
         minHeight: "100vh",
         display: "flex",
-        flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
         background: "linear-gradient(180deg, #EAF6FF 0%, #FFFFFF 100%)",
