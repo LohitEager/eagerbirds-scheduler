@@ -1,19 +1,15 @@
 "use client";
 
-import React from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-
-// ✅ Correct v6.1.10 CSS imports (verified for Next.js + Vercel)
-import "@fullcalendar/core/main.css";
-import "@fullcalendar/daygrid/main.css";
-import "@fullcalendar/timegrid/main.css";
+import React, { useState } from "react";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 
 export default function CalendarPage() {
-  const handleDateClick = (info) => {
-    alert(`Clicked on: ${info.dateStr}`);
+  const [date, setDate] = useState(new Date());
+
+  const handleDateChange = (value) => {
+    setDate(value);
+    alert(`Selected: ${value.toDateString()}`);
   };
 
   return (
@@ -29,54 +25,50 @@ export default function CalendarPage() {
     >
       <div
         style={{
-          maxWidth: "900px",
+          maxWidth: "500px",
           width: "100%",
           background: "#ffffff",
           borderRadius: "20px",
           boxShadow: "0 8px 24px rgba(0, 0, 0, 0.08)",
           padding: "30px",
+          textAlign: "center",
         }}
       >
         <h1
           style={{
-            textAlign: "center",
             fontSize: "24px",
             color: "#1E3A8A",
-            marginBottom: "30px",
+            marginBottom: "20px",
           }}
         >
           🐦 Eager Birds — Teacher Calendar
         </h1>
 
-        <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
-          editable={true}
-          selectable={true}
-          dateClick={handleDateClick}
-          height="auto"
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay",
-          }}
+        <Calendar
+          onChange={handleDateChange}
+          value={date}
+          calendarType="US"
         />
 
-        <div style={{ textAlign: "center", marginTop: "30px" }}>
-          <a
-            href="/"
-            style={{
-              background: "#2563EB",
-              color: "white",
-              padding: "10px 18px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontWeight: "500",
-            }}
-          >
-            ← Back to Slots
-          </a>
-        </div>
+        <p style={{ marginTop: "20px", color: "#333" }}>
+          Selected: <b>{date.toDateString()}</b>
+        </p>
+
+        <a
+          href="/"
+          style={{
+            display: "inline-block",
+            marginTop: "30px",
+            background: "#2563EB",
+            color: "white",
+            padding: "10px 18px",
+            borderRadius: "8px",
+            textDecoration: "none",
+            fontWeight: "500",
+          }}
+        >
+          ← Back to Slots
+        </a>
       </div>
     </div>
   );
