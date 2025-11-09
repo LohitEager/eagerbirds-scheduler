@@ -2,144 +2,217 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import DatePicker from "react-datepicker";
+import Modal from "react-modal";
+import "react-datepicker/dist/react-datepicker.css";
 
-// Supabase client (uses NEXT_PUBLIC_* env vars)
+// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-export default function Home() {
-  const [email, setEmail] = useState("");
-  const [user, setUser] = useState(null);
+export default function Page() {
+  const [session, setSession] = useState(null);
   const [slots, setSlots] = useState([]);
-  const [sending, setSending] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+  const [endTime, setEndTime] = useState(null);
 
-  // Keep session in state
+  // Ensure react-modal attaches to DOM
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
-      setUser(session?.user || null)
-    );
-    return () => sub.subscription.unsubscribe();
+    if (typeof document !== "undefined") {
+      Modal.setAppElement(document.body);
+    }
   }, []);
 
-  async function sendMagicLink(e) {
-    e.preventDefault();
-    setSending(true);
-    const { error } = await supabase.auth.signInWithOtp({ email });
-    setSending(false);
-    if (error) return alert(error.message);
-    alert("Magic link sent. Check your email to finish login.");
-  }
-
-  // Load teacher's slots
+  // Manage session
   useEffect(() => {
-    if (!user) return;
-    loadSlots();
-  }, [user]);
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => setSession(session)
+    );
+    return () => subscription.unsubscribe();
+  }, []);
 
-  async function loadSlots() {
+  // Load slots when user logs in
+  useEffect(() => {
+    if (session?.user) {
+      loadSlots();
+    } else {
+      setSlots([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  // Fetch all slots for the logged-in teacher
+  const loadSlots = async () => {
+    if (!session?.user) return;
     const { data, error } = await supabase
       .from("slots")
       .select("*")
-      .eq("teacher_id", user.id)
+      .eq("teacher_id", session.user.id)
       .order("start_utc", { ascending: true });
-    if (error) return alert(error.message);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
     setSlots(data || []);
-  }
+  };
 
-  async function addSlot() {
-    const start = prompt("Start (YYYY-MM-DD HH:mm in your local time):");
-    const end = prompt("End (YYYY-MM-DD HH:mm in your local time):");
-    if (!start || !end) return;
+  // Insert new slot
+  const addSlot = async () => {
+    if (!startTime || !endTime) return alert("Please select both start and end times.");
+    if (endTime <= startTime) return alert("End time must be after start time.");
 
-    const startISO = new Date(start.replace(" ", "T") + ":00").toISOString();
-    const endISO = new Date(end.replace(" ", "T") + ":00").toISOString();
+    const { error } = await supabase.from("slots").insert([
+      {
+        teacher_id: session.user.id,
+        start_utc: startTime.toISOString(),
+        end_utc: endTime.toISOString(),
+        slot_type: "demo",
+        status: "free",
+        notes: "Created manually",
+      },
+    ]);
 
-    const { error } = await supabase.from("slots").insert({
-      teacher_id: user.id,
-      start_utc: startISO,
-      end_utc: endISO,
-      slot_type: "demo",
-      status: "free"
-    });
-    if (error) return alert(error.message);
-    alert("Slot added");
-    loadSlots();
-  }
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-  async function signOut() {
+    await loadSlots();
+    setIsModalOpen(false);
+    setStartTime(null);
+    setEndTime(null);
+  };
+
+  const signIn = async () => {
+    const email = prompt("Enter your email:");
+    if (email) {
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) alert(error.message);
+      else alert("Check your email for the magic link.");
+    }
+  };
+
+  const signOut = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setSlots([]);
-  }
+    setSession(null);
+  };
 
-  if (!user) {
+  // --- UI ---
+  if (!session) {
     return (
-      <main style={{ padding: 32, width: 420 }}>
-        <h1 style={{ marginBottom: 8 }}>🐦 Eager Birds Scheduler</h1>
-        <p style={{ marginTop: 0 }}>
-          Login with your email. We’ll send a one-click magic link.
-        </p>
-        <form onSubmit={sendMagicLink} style={{ marginTop: 16 }}>
-          <input
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #cfe0ff" }}
-          />
-          <button
-            type="submit"
-            disabled={sending}
-            style={{
-              marginTop: 12,
-              width: "100%",
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "none",
-              background: "#4EB2F4",
-              color: "#052447",
-              fontWeight: 700,
-              cursor: "pointer"
-            }}
-          >
-            {sending ? "Sending…" : "Send Magic Link"}
-          </button>
-        </form>
-      </main>
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <h1 style={{ fontSize: 22, marginBottom: 16 }}>Eager Birds Scheduler 🐦</h1>
+        <button
+          onClick={signIn}
+          style={{
+            background: "#2563eb",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: 6,
+          }}
+        >
+          Sign In with Magic Link
+        </button>
+      </div>
     );
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 720, width: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0 }}>Welcome, {user.email}</h2>
-        <button onClick={signOut} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #cfe0ff", background: "white", cursor: "pointer" }}>
+    <div style={{ padding: 32, maxWidth: 900, margin: "0 auto" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 20,
+        }}
+      >
+        <h2 style={{ fontSize: 20, fontWeight: 600 }}>Welcome, {session.user.email}</h2>
+        <button onClick={signOut} style={{ color: "#6b7280" }}>
           Sign out
         </button>
       </div>
 
-      <hr style={{ margin: "16px 0", borderColor: "#e6eefc" }} />
-
-      <h3 style={{ marginTop: 0 }}>Your Slots</h3>
-      <button onClick={addSlot} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#4EB2F4", color: "#052447", fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
+      <button
+        onClick={() => setIsModalOpen(true)}
+        style={{
+          background: "#2563eb",
+          color: "#fff",
+          padding: "10px 14px",
+          borderRadius: 6,
+          marginBottom: 18,
+        }}
+      >
         + Add New Slot
       </button>
 
-      {slots.length === 0 ? (
-        <p>No slots yet. Click “+ Add New Slot”.</p>
-      ) : (
-        <ul style={{ paddingLeft: 16 }}>
-          {slots.map((s) => (
-            <li key={s.id} style={{ marginBottom: 8 }}>
-              {new Date(s.start_utc).toLocaleString()} → {new Date(s.end_utc).toLocaleString()} — <b>{s.status}</b> ({s.slot_type})
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+      <ul style={{ color: "#374151", lineHeight: 1.8 }}>
+        {slots.length === 0 && <li>No slots yet. Click “+ Add New Slot”.</li>}
+        {slots.map((slot) => (
+          <li key={slot.id}>
+            {new Date(slot.start_utc).toLocaleString()} →{" "}
+            {new Date(slot.end_utc).toLocaleString()} —{" "}
+            <strong>{slot.status}</strong> ({slot.slot_type})
+          </li>
+        ))}
+      </ul>
+
+      {/* Add slot modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onRequestClose={() => setIsModalOpen(false)}
+        style={{
+          overlay: { backgroundColor: "rgba(0,0,0,0.5)" },
+          content: {
+            maxWidth: 420,
+            margin: "auto",
+            inset: 0,
+            height: 380,
+            padding: 24,
+            borderRadius: 12,
+          },
+        }}
+      >
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Add a New Slot</h3>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: "block", marginBottom: 6 }}>Start Time</label>
+          <DatePicker
+            selected={startTime}
+            onChange={(date) => setStartTime(date)}
+            showTimeSelect
+            dateFormat="Pp"
+          />
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", marginBottom: 6 }}>End Time</label>
+          <DatePicker
+            selected={endTime}
+            onChange={(date) => setEndTime(date)}
+            showTimeSelect
+            dateFormat="Pp"
+          />
+        </div>
+
+        <button
+          onClick={addSlot}
+          style={{
+            background: "#16a34a",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: 6,
+          }}
+        >
+          Save Slot
+        </button>
+      </Modal>
+    </div>
   );
 }
