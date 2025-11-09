@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase client using your environment variables
+// Supabase client (uses NEXT_PUBLIC_* env vars)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -13,121 +13,133 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [user, setUser] = useState(null);
   const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  // Fetch user session
+  // Keep session in state
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setUser(session?.user || null)
     );
-
-    return () => listener.subscription.unsubscribe();
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Handle login with magic link
-  async function handleLogin(e) {
+  async function sendMagicLink(e) {
     e.preventDefault();
-    setLoading(true);
+    setSending(true);
     const { error } = await supabase.auth.signInWithOtp({ email });
-    if (error) alert(error.message);
-    else alert("Check your email for the login link!");
-    setLoading(false);
+    setSending(false);
+    if (error) return alert(error.message);
+    alert("Magic link sent. Check your email to finish login.");
   }
 
-  // Fetch existing slots
+  // Load teacher's slots
   useEffect(() => {
     if (!user) return;
-    fetchSlots();
+    loadSlots();
   }, [user]);
 
-  async function fetchSlots() {
+  async function loadSlots() {
     const { data, error } = await supabase
       .from("slots")
       .select("*")
-      .eq("teacher_id", user?.id)
+      .eq("teacher_id", user.id)
       .order("start_utc", { ascending: true });
-
-    if (error) console.error(error);
-    else setSlots(data || []);
+    if (error) return alert(error.message);
+    setSlots(data || []);
   }
 
   async function addSlot() {
-    const start = prompt("Enter start time (YYYY-MM-DD HH:mm):");
-    const end = prompt("Enter end time (YYYY-MM-DD HH:mm):");
+    const start = prompt("Start (YYYY-MM-DD HH:mm in your local time):");
+    const end = prompt("End (YYYY-MM-DD HH:mm in your local time):");
     if (!start || !end) return;
+
+    const startISO = new Date(start.replace(" ", "T") + ":00").toISOString();
+    const endISO = new Date(end.replace(" ", "T") + ":00").toISOString();
 
     const { error } = await supabase.from("slots").insert({
       teacher_id: user.id,
-      start_utc: new Date(start).toISOString(),
-      end_utc: new Date(end).toISOString(),
+      start_utc: startISO,
+      end_utc: endISO,
       slot_type: "demo",
       status: "free"
     });
-
-    if (error) alert(error.message);
-    else {
-      alert("Slot added successfully!");
-      fetchSlots();
-    }
+    if (error) return alert(error.message);
+    alert("Slot added");
+    loadSlots();
   }
 
-  // Logout
-  async function logout() {
+  async function signOut() {
     await supabase.auth.signOut();
     setUser(null);
+    setSlots([]);
   }
 
-  // UI
-  if (!user)
+  if (!user) {
     return (
-      <main style={{ padding: 50, textAlign: "center" }}>
-        <h1>🐦 Eager Birds Scheduler</h1>
-        <p>Login with your email to manage your demo & class slots.</p>
-        <form onSubmit={handleLogin} style={{ marginTop: 20 }}>
+      <main style={{ padding: 32, width: 420 }}>
+        <h1 style={{ marginBottom: 8 }}>🐦 Eager Birds Scheduler</h1>
+        <p style={{ marginTop: 0 }}>
+          Login with your email. We’ll send a one-click magic link.
+        </p>
+        <form onSubmit={sendMagicLink} style={{ marginTop: 16 }}>
           <input
             type="email"
+            required
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ padding: 10, width: 250 }}
+            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #cfe0ff" }}
           />
-          <br />
-          <button type="submit" style={{ marginTop: 10, padding: "8px 20px" }}>
-            {loading ? "Sending link..." : "Send Magic Link"}
+          <button
+            type="submit"
+            disabled={sending}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "none",
+              background: "#4EB2F4",
+              color: "#052447",
+              fontWeight: 700,
+              cursor: "pointer"
+            }}
+          >
+            {sending ? "Sending…" : "Send Magic Link"}
           </button>
         </form>
       </main>
     );
+  }
 
   return (
-    <main style={{ padding: 50 }}>
-      <h1>Welcome, {user.email}</h1>
-      <button onClick={logout} style={{ marginBottom: 20 }}>
-        Logout
-      </button>
+    <main style={{ padding: 32, maxWidth: 720, width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Welcome, {user.email}</h2>
+        <button onClick={signOut} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #cfe0ff", background: "white", cursor: "pointer" }}>
+          Sign out
+        </button>
+      </div>
 
-      <h2>Your Slots</h2>
-      <button onClick={addSlot} style={{ margin: "10px 0" }}>
+      <hr style={{ margin: "16px 0", borderColor: "#e6eefc" }} />
+
+      <h3 style={{ marginTop: 0 }}>Your Slots</h3>
+      <button onClick={addSlot} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#4EB2F4", color: "#052447", fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
         + Add New Slot
       </button>
 
-      <ul>
-        {slots.map((s) => (
-          <li key={s.id}>
-            {new Date(s.start_utc).toLocaleString()} →{" "}
-            {new Date(s.end_utc).toLocaleString()} ({s.status})
-          </li>
-        ))}
-      </ul>
-
-      {slots.length === 0 && <p>No slots yet. Add one above.</p>}
+      {slots.length === 0 ? (
+        <p>No slots yet. Click “+ Add New Slot”.</p>
+      ) : (
+        <ul style={{ paddingLeft: 16 }}>
+          {slots.map((s) => (
+            <li key={s.id} style={{ marginBottom: 8 }}>
+              {new Date(s.start_utc).toLocaleString()} → {new Date(s.end_utc).toLocaleString()} — <b>{s.status}</b> ({s.slot_type})
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
