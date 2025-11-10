@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
-// 🧠 Supabase client
+// Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -16,117 +16,116 @@ const localizer = momentLocalizer(moment);
 
 export default function CalendarPage() {
   const [session, setSession] = useState(null);
-  const [slots, setSlots] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState(null);
 
-  // ✅ Get session
+  // 🔹 Auth check
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
+      setSession(session)
+    );
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Fetch slots
+  // 🔹 Fetch slots
   useEffect(() => {
-    if (!session?.user) return;
-    fetchSlots();
-  }, [session?.user?.email]);
+    if (session?.user) loadSlots();
+  }, [session?.user?.id]);
 
-  const fetchSlots = async () => {
+  const loadSlots = async () => {
     setLoading(true);
-    let query = supabase.from("slots").select("*");
+    let query = supabase.from("slots").select("*").order("start_utc", { ascending: true });
 
-    if (session?.user?.email !== "lohit@eagerbirds.com") {
+    // Admin check
+    if (session.user.email !== "lohit@eagerbirds.com") {
       query = query.eq("teacher_id", session.user.id);
     }
 
     const { data, error } = await query;
     if (error) {
-      console.error(error);
-      alert("Error loading slots");
-    } else {
-      const formatted = data.map((slot) => ({
-        id: slot.id,
-        title:
-          slot.slot_type === "demo"
-            ? `🟢 Demo (${slot.status})`
-            : `🟣 ${slot.slot_type || "Slot"}`,
-        start: new Date(slot.start_utc),
-        end: new Date(slot.end_utc),
-        resource: slot.teacher_id,
-      }));
-      setSlots(formatted);
+      alert("Error fetching slots: " + error.message);
+      setLoading(false);
+      return;
     }
 
+    const formatted = (data || []).map((slot) => ({
+      id: slot.id,
+      title: `${slot.slot_type} (${slot.status})`,
+      start: new Date(slot.start_utc),
+      end: new Date(slot.end_utc),
+      teacher_id: slot.teacher_id,
+      status: slot.status,
+    }));
+
+    setEvents(formatted);
     setLoading(false);
   };
 
-  // ✅ Add new slot
-  const addSlot = async () => {
-    if (!selectedSlot) return;
-
-    const { start, end } = selectedSlot;
-    if (!start || !end) {
-      alert("Invalid time range");
+  // 🔹 Add new slot on calendar click
+  const handleSelectSlot = async ({ start, end }) => {
+    if (session.user.email === "lohit@eagerbirds.com") {
+      alert("Admins cannot add slots.");
       return;
     }
+
+    if (!window.confirm(`Add a new slot from ${start.toLocaleString()} to ${end.toLocaleString()}?`)) return;
 
     const { error } = await supabase.from("slots").insert([
       {
         teacher_id: session.user.id,
         start_utc: start.toISOString(),
         end_utc: end.toISOString(),
-        slot_type: "available",
+        slot_type: "demo",
         status: "free",
         notes: "Added via calendar",
       },
     ]);
 
-    if (error) {
-      alert("Error adding slot: " + error.message);
-    } else {
-      setModalOpen(false);
-      setSelectedSlot(null);
-      fetchSlots();
-    }
+    if (error) alert(error.message);
+    else loadSlots();
   };
 
-  // ✅ Handle calendar click
-  const handleSelectSlot = ({ start, end }) => {
-    if (session?.user?.email === "lohit@eagerbirds.com") {
-      alert("Admins cannot add slots here.");
-      return;
-    }
-    setSelectedSlot({ start, end });
-    setModalOpen(true);
+  // 🔹 Color coding
+  const eventStyleGetter = (event) => {
+    let bg = "#4EB2F4"; // default blue
+    if (event.status === "free") bg = "#16a34a";
+    if (event.status === "booked") bg = "#9ca3af";
+    if (session.user.email === "lohit@eagerbirds.com") bg = "#f59e0b"; // yellow for admin view
+    return {
+      style: {
+        backgroundColor: bg,
+        borderRadius: "8px",
+        opacity: 0.9,
+        color: "#fff",
+        border: "none",
+        display: "block",
+      },
+    };
   };
 
+  // 🔹 If not logged in
   if (!session) {
     return (
       <div
         style={{
-          textAlign: "center",
-          padding: "100px 20px",
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          color: "#0d203a",
           background: "linear-gradient(180deg,#f9fbff 0%,#e7f5ff 100%)",
-          minHeight: "100vh",
+          textAlign: "center",
         }}
       >
         <img
           src="https://res.cloudinary.com/da3twnvrl/image/upload/v1762696175/Video-Generation-Successful-unscreen_dx5ujt.gif"
-          alt="Eager Birds Mascot"
-          style={{ width: 150, marginBottom: 20 }}
+          alt="Eager Birds mascot"
+          style={{ width: 120, marginBottom: 20 }}
         />
-        <h2 style={{ color: "#0d203a" }}>Please sign in to view your calendar 🐦</h2>
+        <h2>Eager Birds Scheduler</h2>
+        <p>Please sign in to view your calendar.</p>
       </div>
     );
   }
@@ -134,147 +133,37 @@ export default function CalendarPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "linear-gradient(180deg, #EAF6FF 0%, #FFFFFF 100%)",
-        padding: "40px 20px",
+        height: "100vh",
+        padding: 20,
+        background: "linear-gradient(180deg, #f9fbff 0%, #e7f5ff 100%)",
       }}
     >
-      <div
-        style={{
-          maxWidth: "1000px",
-          margin: "auto",
-          background: "#fff",
-          borderRadius: "20px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
-          padding: "30px",
-        }}
-      >
-        <h1
+      <h2 style={{ textAlign: "center", color: "#0d203a", marginBottom: 20 }}>
+        {session.user.email === "lohit@eagerbirds.com"
+          ? "Admin Calendar View"
+          : "My Teaching Calendar"}
+      </h2>
+
+      {loading ? (
+        <p style={{ textAlign: "center", color: "#6b7280" }}>Loading slots...</p>
+      ) : (
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          selectable
+          onSelectSlot={handleSelectSlot}
+          defaultView="week"
           style={{
-            textAlign: "center",
-            color: "#1E3A8A",
-            fontSize: "26px",
-            fontWeight: "700",
-            marginBottom: "30px",
+            height: "80vh",
+            background: "#fff",
+            borderRadius: "16px",
+            padding: "10px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
           }}
-        >
-          🐦 Eager Birds —{" "}
-          {session.user.email === "lohit@eagerbirds.com" ? "Admin" : "Teacher"} Calendar
-        </h1>
-
-        {loading ? (
-          <p style={{ textAlign: "center", color: "#6b7280" }}>Loading slots...</p>
-        ) : (
-          <Calendar
-            localizer={localizer}
-            events={slots}
-            startAccessor="start"
-            endAccessor="end"
-            selectable
-            onSelectSlot={handleSelectSlot}
-            style={{ height: 600 }}
-            eventPropGetter={(event) => ({
-              style: {
-                backgroundColor:
-                  session.user.email === "lohit@eagerbirds.com"
-                    ? "#4EB2F4"
-                    : "#16a34a",
-                borderRadius: "10px",
-                border: "none",
-                color: "white",
-              },
-            })}
-          />
-        )}
-
-        <div style={{ textAlign: "center", marginTop: "30px" }}>
-          <a
-            href="/"
-            style={{
-              background: "#2563EB",
-              color: "white",
-              padding: "10px 18px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontWeight: "500",
-            }}
-          >
-            ← Back to Slots
-          </a>
-        </div>
-      </div>
-
-      {modalOpen && selectedSlot && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "16px",
-              padding: "24px 30px",
-              width: "400px",
-              boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-            }}
-          >
-            <h3
-              style={{
-                color: "#0d203a",
-                fontWeight: "700",
-                marginBottom: "12px",
-                textAlign: "center",
-              }}
-            >
-              Add New Slot
-            </h3>
-
-            <p style={{ color: "#374151", fontSize: 15, textAlign: "center" }}>
-              {moment(selectedSlot.start).format("MMMM D, h:mm A")} →{" "}
-              {moment(selectedSlot.end).format("h:mm A")}
-            </p>
-
-            <div style={{ textAlign: "center", marginTop: 20 }}>
-              <button
-                onClick={addSlot}
-                style={{
-                  background: "#16a34a",
-                  color: "#fff",
-                  padding: "10px 18px",
-                  borderRadius: "8px",
-                  border: "none",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  marginRight: 10,
-                }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setModalOpen(false)}
-                style={{
-                  background: "#e5e7eb",
-                  padding: "10px 18px",
-                  borderRadius: "8px",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+          eventPropGetter={eventStyleGetter}
+        />
       )}
     </div>
   );
