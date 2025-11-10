@@ -6,7 +6,7 @@ import DatePicker from "react-datepicker";
 import Modal from "react-modal";
 import "react-datepicker/dist/react-datepicker.css";
 
-// Supabase
+// Supabase setup
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -19,23 +19,20 @@ export default function Page() {
   const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
 
-  // Attach modal to DOM
   useEffect(() => {
     if (typeof document !== "undefined") {
       Modal.setAppElement(document.body);
     }
   }, []);
 
-  // Session
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => setSession(session)
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch slots
   useEffect(() => {
     if (session?.user) loadSlots();
   }, [session?.user?.id]);
@@ -47,7 +44,6 @@ export default function Page() {
       .select("*")
       .eq("teacher_id", session.user.id)
       .order("start_utc", { ascending: true });
-
     if (error) {
       alert(error.message);
       return;
@@ -58,7 +54,6 @@ export default function Page() {
   const addSlot = async () => {
     if (!startTime || !endTime) return alert("Select both start and end times.");
     if (endTime <= startTime) return alert("End must be after start.");
-
     const { error } = await supabase.from("slots").insert([
       {
         teacher_id: session.user.id,
@@ -69,9 +64,7 @@ export default function Page() {
         notes: "Created manually",
       },
     ]);
-
     if (error) return alert(error.message);
-
     await loadSlots();
     setIsModalOpen(false);
     setStartTime(null);
@@ -92,46 +85,53 @@ export default function Page() {
     setSession(null);
   };
 
-  // ----------- UI ------------
+  // UI ---------------------------------------------------------
   if (!session) {
     return (
       <div
         style={{
           minHeight: "100vh",
-          background: "linear-gradient(180deg, #f9fbff 0%, #e7f5ff 100%)",
+          background: "linear-gradient(180deg, #000428 0%, #004e92 100%)",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
           justifyContent: "center",
+          alignItems: "center",
           textAlign: "center",
+          color: "#fff",
+          overflow: "hidden",
         }}
       >
         <img
-          src="https://i.postimg.cc/s2N58DvH/Video-Generation-Successful-unscreen.gif"
-          alt="Eager Birds mascot"
-          style={{ width: 120, marginBottom: 16 }}
+          src="https://res.cloudinary.com/da3twnvrl/image/upload/v1762696175/Video-Generation-Successful-unscreen_dx5ujt.gif"
+          alt="Eager Birds Mascot"
+          style={{
+            width: 200,
+            animation: "float 3s ease-in-out infinite",
+            marginBottom: 20,
+          }}
         />
-        <h1 style={{ fontSize: 26, color: "#0d203a", marginBottom: 8 }}>
+        <h1 style={{ fontSize: 34, marginBottom: 10, fontWeight: "700" }}>
           Eager Birds Scheduler 🐦
         </h1>
-        <p style={{ color: "#6b7280", marginBottom: 20 }}>
-          Log in to manage your available teaching slots.
+        <p style={{ fontSize: 16, opacity: 0.85, marginBottom: 24 }}>
+          Log in to manage your available teaching slots
         </p>
         <button
           onClick={signIn}
           style={{
             background: "#4EB2F4",
             color: "#fff",
-            padding: "12px 22px",
-            borderRadius: 10,
             border: "none",
-            cursor: "pointer",
+            padding: "14px 28px",
+            borderRadius: 12,
             fontWeight: 600,
-            boxShadow: "0 4px 14px rgba(78,178,244,0.3)",
-            transition: "0.3s",
+            cursor: "pointer",
+            fontSize: 16,
+            boxShadow: "0 6px 20px rgba(78,178,244,0.4)",
+            transition: "transform 0.2s ease, background 0.3s ease",
           }}
-          onMouseOver={(e) => (e.target.style.background = "#3597db")}
-          onMouseOut={(e) => (e.target.style.background = "#4EB2F4")}
+          onMouseOver={(e) => (e.target.style.transform = "scale(1.05)")}
+          onMouseOut={(e) => (e.target.style.transform = "scale(1.0)")}
         >
           Sign In with Magic Link
         </button>
@@ -142,23 +142,44 @@ export default function Page() {
   return (
     <div
       style={{
-        background: "linear-gradient(180deg, #f9fbff 0%, #e7f5ff 100%)",
+        background: "linear-gradient(180deg, #000428 0%, #004e92 100%)",
         minHeight: "100vh",
-        padding: "40px 24px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        padding: "50px 20px",
+        color: "#fff",
       }}
     >
+      {/* Hero Section */}
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <img
+          src="https://res.cloudinary.com/da3twnvrl/image/upload/v1762696175/Video-Generation-Successful-unscreen_dx5ujt.gif"
+          alt="Eager Birds Mascot"
+          style={{
+            width: 160,
+            animation: "float 3s ease-in-out infinite",
+          }}
+        />
+        <h1 style={{ fontSize: 32, fontWeight: 700, marginTop: 10 }}>
+          Teacher Dashboard
+        </h1>
+        <p style={{ fontSize: 16, opacity: 0.85 }}>
+          Manage your slots and availability below
+        </p>
+      </div>
+
+      {/* Dashboard Card */}
       <div
         style={{
-          background: "#fff",
+          background: "#ffffff",
           borderRadius: 20,
           padding: 30,
-          boxShadow: "0 8px 25px rgba(0,0,0,0.08)",
-          maxWidth: 650,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+          maxWidth: 700,
           width: "100%",
           textAlign: "center",
+          color: "#0d203a",
         }}
       >
         <div
@@ -169,8 +190,9 @@ export default function Page() {
             marginBottom: 20,
           }}
         >
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0d203a" }}>
-            Welcome, <span style={{ color: "#4EB2F4" }}>{session.user.email}</span>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>
+            Welcome,{" "}
+            <span style={{ color: "#4EB2F4" }}>{session.user.email}</span>
           </h2>
           <button
             onClick={signOut}
@@ -199,17 +221,19 @@ export default function Page() {
             fontWeight: 600,
             marginBottom: 18,
             boxShadow: "0 4px 14px rgba(78,178,244,0.3)",
-            transition: "0.3s",
+            transition: "transform 0.2s ease",
           }}
-          onMouseOver={(e) => (e.target.style.background = "#3597db")}
-          onMouseOut={(e) => (e.target.style.background = "#4EB2F4")}
+          onMouseOver={(e) => (e.target.style.transform = "scale(1.05)")}
+          onMouseOut={(e) => (e.target.style.transform = "scale(1.0)")}
         >
           + Add New Slot
         </button>
 
         <ul style={{ color: "#374151", textAlign: "left", lineHeight: 1.8 }}>
           {slots.length === 0 && (
-            <li style={{ color: "#6b7280" }}>No slots yet. Click “+ Add New Slot”.</li>
+            <li style={{ color: "#6b7280" }}>
+              No slots yet. Click “+ Add New Slot”.
+            </li>
           )}
           {slots.map((slot) => (
             <li
@@ -249,7 +273,8 @@ export default function Page() {
             padding: 30,
             borderRadius: 16,
             border: "none",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
+            backdropFilter: "blur(12px)",
+            background: "rgba(255,255,255,0.9)",
           },
         }}
       >
@@ -268,12 +293,6 @@ export default function Page() {
             timeIntervals={30}
             dateFormat="Pp"
             className="datepicker-input"
-            style={{
-              padding: "8px",
-              width: "100%",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-            }}
           />
         </div>
 
