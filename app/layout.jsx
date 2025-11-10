@@ -1,3 +1,4 @@
+import "./globals.css";
 export const metadata = {
   title: "Eager Birds Scheduler",
   description: "Teacher scheduling app for Eager Birds"
