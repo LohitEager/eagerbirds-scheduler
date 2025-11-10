@@ -25,7 +25,7 @@ export default function AdminDashboard() {
 
   // Fetch all slots (only if admin)
   useEffect(() => {
-    if (session?.user?.email === "admin@eagerbirds.com") {
+    if (session?.user?.email === "lohit@eagerbirds.com") {
       loadSlots();
     }
   }, [session]);
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (session.user.email !== "admin@eagerbirds.com") {
+  if (session.user.email !== "lohit@eagerbirds.com") {
     return (
       <div
         style={{
