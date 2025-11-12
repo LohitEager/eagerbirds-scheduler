@@ -17,6 +17,10 @@ export default function CalendarPage() {
   const [session, setSession] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [slotType, setSlotType] = useState("demo");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
@@ -36,14 +40,12 @@ export default function CalendarPage() {
     if (session.user.email !== "lohit@eagerbirds.com") {
       query = query.eq("teacher_id", session.user.id);
     }
-
     const { data, error } = await query;
     if (error) {
       alert(error.message);
       setLoading(false);
       return;
     }
-
     const formatted = (data || []).map((slot) => ({
       id: slot.id,
       title: `${slot.slot_type} (${slot.status})`,
@@ -52,32 +54,29 @@ export default function CalendarPage() {
       teacher_id: slot.teacher_id,
       status: slot.status,
     }));
-
     setEvents(formatted);
     setLoading(false);
   };
 
-  const handleSelectSlot = async ({ start, end }) => {
-    if (session.user.email === "lohit@eagerbirds.com") {
-      alert("Admins cannot add slots.");
-      return;
-    }
-    if (!window.confirm(`Add a new slot from ${start.toLocaleString()} to ${end.toLocaleString()}?`))
-      return;
-
+  const addSlot = async () => {
+    if (!startTime || !endTime) return alert("Please select start and end times.");
+    if (new Date(endTime) <= new Date(startTime))
+      return alert("End time must be after start time.");
     const { error } = await supabase.from("slots").insert([
       {
         teacher_id: session.user.id,
-        start_utc: start.toISOString(),
-        end_utc: end.toISOString(),
-        slot_type: "demo",
+        start_utc: new Date(startTime).toISOString(),
+        end_utc: new Date(endTime).toISOString(),
+        slot_type: slotType,
         status: "free",
-        notes: "Added via calendar",
+        notes: "Created via Add Slot button",
       },
     ]);
-
-    if (error) alert(error.message);
-    else loadSlots();
+    if (error) return alert(error.message);
+    await loadSlots();
+    setIsModalOpen(false);
+    setStartTime("");
+    setEndTime("");
   };
 
   const eventStyleGetter = (event) => {
@@ -129,9 +128,9 @@ export default function CalendarPage() {
         background: "linear-gradient(180deg,#dff3ff 0%,#f7fbff 100%)",
         padding: "20px 10px",
         fontFamily: "Inter, sans-serif",
+        position: "relative",
       }}
     >
-      {/* Header Bar */}
       <div
         style={{
           background: "linear-gradient(90deg,#4EB2F4 0%,#5fc8f8 100%)",
@@ -159,7 +158,6 @@ export default function CalendarPage() {
         </h2>
       </div>
 
-      {/* Calendar Container */}
       <div
         style={{
           maxWidth: 1000,
@@ -180,8 +178,7 @@ export default function CalendarPage() {
             endAccessor="end"
             step={30}
             timeslots={2}
-            selectable
-            onSelectSlot={handleSelectSlot}
+            selectable={false}
             defaultView="week"
             style={{ height: "80vh" }}
             eventPropGetter={eventStyleGetter}
@@ -190,6 +187,139 @@ export default function CalendarPage() {
           />
         )}
       </div>
+
+      {/* Floating Add Slot Button */}
+      {session.user.email !== "lohit@eagerbirds.com" && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          style={{
+            position: "fixed",
+            bottom: "40px",
+            right: "40px",
+            background: "#4EB2F4",
+            border: "none",
+            borderRadius: "50%",
+            width: "65px",
+            height: "65px",
+            color: "#fff",
+            fontSize: "32px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            boxShadow: "0 8px 16px rgba(78,178,244,0.4)",
+            transition: "all 0.3s ease",
+          }}
+          onMouseOver={(e) => (e.target.style.background = "#3490dc")}
+          onMouseOut={(e) => (e.target.style.background = "#4EB2F4")}
+        >
+          +
+        </button>
+      )}
+
+      {/* Modal Form */}
+      {isModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              padding: 30,
+              borderRadius: 16,
+              width: "90%",
+              maxWidth: 420,
+              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+              animation: "fadeIn 0.3s ease-in-out",
+            }}
+          >
+            <h3 style={{ marginBottom: 16, color: "#0d203a", textAlign: "center" }}>
+              Add a New Slot
+            </h3>
+
+            <label style={{ fontWeight: 500 }}>Start Time</label>
+            <input
+              type="datetime-local"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              style={{
+                width: "100%",
+                margin: "8px 0 14px",
+                padding: "10px",
+                borderRadius: 8,
+                border: "1px solid #ccc",
+              }}
+            />
+
+            <label style={{ fontWeight: 500 }}>End Time</label>
+            <input
+              type="datetime-local"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              style={{
+                width: "100%",
+                margin: "8px 0 14px",
+                padding: "10px",
+                borderRadius: 8,
+                border: "1px solid #ccc",
+              }}
+            />
+
+            <label style={{ fontWeight: 500 }}>Slot Type</label>
+            <select
+              value={slotType}
+              onChange={(e) => setSlotType(e.target.value)}
+              style={{
+                width: "100%",
+                margin: "8px 0 18px",
+                padding: "10px",
+                borderRadius: 8,
+                border: "1px solid #ccc",
+              }}
+            >
+              <option value="demo">Demo</option>
+              <option value="class">Class</option>
+              <option value="break">Break</option>
+              <option value="meeting">Meeting</option>
+            </select>
+
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  background: "#e5e7eb",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addSlot}
+                style={{
+                  background: "#16a34a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  cursor: "pointer",
+                }}
+              >
+                Save Slot
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
